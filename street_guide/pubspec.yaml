@@ -1,4 +1,4 @@
-name: street_guide
+name: audio_atlas
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -34,6 +34,12 @@ dependencies:
   audioplayers: ^6.0.0
   path_provider: ^2.1.1
   geolocator: ^10.1.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  flutter_compass: ^0.8.0
+  google_fonts: ^6.1.0
+  shared_preferences: ^2.2.2
+  uuid: ^4.3.3
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

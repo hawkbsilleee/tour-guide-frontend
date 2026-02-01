@@ -1,4 +1,4 @@
-package com.example.street_guide
+package com.example.audio_atlas
 
 import io.flutter.embedding.android.FlutterActivity
 
