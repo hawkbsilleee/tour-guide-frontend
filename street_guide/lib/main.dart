@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:typed_data';
+import 'package:geolocator/geolocator.dart';
 
 void main() {
   runApp(MyApp());
@@ -54,17 +55,21 @@ class _TtsDemoState extends State<TtsDemo> {
   bool _isPlaying = false;
   String? _lastMessage;
   String? _errorMessage;
+
+  // Location state
+  Position? _currentPosition;
+  double _heading = 0;
   
   // Update this URL based on your setup:
   // - Android Emulator: http://10.0.2.2:8000
   // - iOS Simulator: http://localhost:8000
   // - Physical Device: http://YOUR_COMPUTER_IP:8000
-  static const String backendUrl = 'http://10.0.2.2:8000'; // Default for Android emulator
+  static const String backendUrl = 'http://10.37.93.185:8000'; // Default for Android emulator
   
   // ElevenLabs API Configuration
   // TODO: Replace with your ElevenLabs API key
   // Get your API key from: https://elevenlabs.io/app/settings/api-keys
-  static const String elevenLabsApiKey = 'sk_634beb92c7183acf82b286664257f06574002780cc1f4caf';
+  static const String elevenLabsApiKey = 'sk_7d0df78e3d0b8ff57c62208db8cd292cc6361b70546d03ac'; //sk_634beb92c7183acf82b286664257f06574002780cc1f4caf
   static const String elevenLabsVoiceId = '21m00Tcm4TlvDq8ikWAM'; // Default voice (Rachel)
   static const String elevenLabsApiUrl = 'https://api.elevenlabs.io/v1/text-to-speech/$elevenLabsVoiceId';
 
@@ -94,6 +99,55 @@ class _TtsDemoState extends State<TtsDemo> {
       setState(() {
         _isInitialized = true;
       });
+    }
+  }
+
+  Future<bool> _getCurrentLocation() async {
+    try {
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() {
+          _errorMessage = 'Location services are disabled. Please enable them.';
+        });
+        return false;
+      }
+
+      // Check permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() {
+            _errorMessage = 'Location permission denied.';
+          });
+          return false;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          _errorMessage = 'Location permissions are permanently denied. Please enable them in settings.';
+        });
+        return false;
+      }
+
+      // Get current position
+      _currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      // Get heading (compass direction)
+      _heading = _currentPosition!.heading;
+
+      print("Location: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}, heading: $_heading");
+      return true;
+    } catch (e) {
+      print("Error getting location: $e");
+      setState(() {
+        _errorMessage = 'Error getting location: $e';
+      });
+      return false;
     }
   }
 
@@ -135,7 +189,7 @@ class _TtsDemoState extends State<TtsDemo> {
         },
         body: json.encode({
           'text': text,
-          'model_id': 'eleven_monolingual_v1',
+          'model_id': 'eleven_multilingual_v2',
           'voice_settings': {
             'stability': 0.5,
             'similarity_boost': 0.5,
@@ -180,18 +234,37 @@ class _TtsDemoState extends State<TtsDemo> {
       _errorMessage = null;
     });
 
+    // Get user's current location first
+    bool locationSuccess = await _getCurrentLocation();
+    if (!locationSuccess || _currentPosition == null) {
+      setState(() {
+        _isLoading = false;
+      });
+      await _speak('Unable to get your location. Please check your location settings.');
+      return;
+    }
+
     try {
-      final response = await http.get(Uri.parse('$backendUrl/hello'));
-      
+      // Send location to backend via POST
+      final response = await http.post(
+        Uri.parse('$backendUrl/tour'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'latitude': _currentPosition!.latitude,
+          'longitude': _currentPosition!.longitude,
+          'heading': _heading,
+        }),
+      );
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final message = data['message'] as String;
-        
+
         setState(() {
           _lastMessage = message;
           _isLoading = false;
         });
-        
+
         // Read the message using TTS
         await _speak(message);
       } else {
